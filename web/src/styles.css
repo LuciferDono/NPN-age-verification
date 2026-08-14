@@ -1,0 +1,115 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   Clinical instrument console.
+
+   Reference points are radiology viewers and lab equipment panels, not web apps:
+   near-black ground, hairline rules instead of cards, monospace for every number
+   so digits align in columns, and exactly one accent — amber — which means
+   "a human needs to look at this" and is never used decoratively.
+
+   Status colour is data. If it is not carrying meaning, it is not on screen.
+--------------------------------------------------------------------------- */
+
+@theme {
+  --color-bg: #0b0d0e;
+  --color-panel: #121517;
+  --color-raised: #171b1e;
+  --color-line: #222a2e;
+  --color-line-strong: #333d43;
+  --color-ink: #e6eaec;
+  --color-ink-dim: #97a1a8;
+  --color-ink-faint: #626c73;
+
+  /* the one accent: attention / manual review */
+  --color-signal: #e3a44f;
+  --color-signal-dim: #6b4f24;
+
+  /* outcome states — desaturated so they read clinical, not traffic-light */
+  --color-ok: #74a78d;
+  --color-stop: #c97a6d;
+
+  --font-ui: "Archivo Variable", ui-sans-serif, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--color-bg);
+    color: var(--color-ink);
+    font-family: var(--font-ui);
+    font-feature-settings: "ss01";
+    -webkit-font-smoothing: antialiased;
+    /* Scanline texture at 2% — reads as instrument glass, invisible unless looked for. */
+    background-image: repeating-linear-gradient(
+      0deg,
+      rgb(255 255 255 / 0.02) 0px,
+      rgb(255 255 255 / 0.02) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+  }
+
+  /* Numbers are readings. They align in columns or they are useless. */
+  :where(td, th) {
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::selection {
+    background: var(--color-signal-dim);
+    color: var(--color-ink);
+  }
+
+  *:focus-visible {
+    outline: 1px solid var(--color-signal);
+    outline-offset: 2px;
+  }
+
+  /* Thin instrument scrollbars */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--color-bg);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-line-strong);
+    border: 3px solid var(--color-bg);
+  }
+}
+
+@utility label {
+  font-size: 0.625rem;
+  line-height: 1;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-ink-faint);
+  font-weight: 600;
+}
+
+/* One orchestrated reveal on result, staggered. Not scattered micro-animation. */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@utility rise {
+  animation: rise 260ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rise {
+    animation: none;
+  }
+}
