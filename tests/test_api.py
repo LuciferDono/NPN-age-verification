@@ -149,16 +149,24 @@ def test_audit_stores_digest_never_bytes() -> None:
     assert digest.encode() in blob
 
 
-def main() -> int:
-    tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
+def main(pattern: str | None = None) -> int:
+    """Run all contract tests, or only those whose name contains `pattern`."""
+    tests = [
+        v for k, v in sorted(globals().items())
+        if k.startswith("test_") and (pattern is None or pattern in k)
+    ]
+    if not tests:
+        print(f"no test matches {pattern!r}")
+        return 2
+
     with client:  # entering the context fires the app lifespan (DB schema)
         for t in tests:
             t()
             print(f"  ok  {t.__name__}")
     store.DB_PATH.unlink(missing_ok=True)
-    print(f"\n{len(tests)} contract tests passed")
+    print(f"\n{len(tests)} contract test{'s' if len(tests) != 1 else ''} passed")
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(sys.argv[1] if len(sys.argv) > 1 else None))
