@@ -1,0 +1,29 @@
+# data + weights — never committed, they are large and the dataset is Kaggle-licensed
+data/
+checkpoints/
+*.pt
+*.pth
+*.onnx
+
+# the dataset's own archives
+*.zip
+
+# runtime
+server/npn.db
+server/_selfcheck.db
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# frontend
+web/node_modules/
+web/dist/
+web/.vite/
+
+# demo assets that are large; keep the final cut only
+demo/raw/
+*.mp4.tmp
+
+.env
+.DS_Store

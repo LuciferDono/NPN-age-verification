@@ -1,0 +1,19 @@
+# Server — installs on any machine, no GPU needed to run the API in MOCK mode.
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+pydantic==2.10.4
+pillow==11.1.0
+
+# --- Model lane only. Install separately. ----------------------------------
+# RTX 50-series (Blackwell, sm_120) needs the cu128 wheels. A plain
+# `pip install torch` pulls cu124 and dies at runtime with
+# "no kernel image is available for execution on the device".
+#
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
+#
+# Then:
+#   pip install timm==1.0.12 opencv-python==4.10.0.84 pandas==2.2.3 numpy==2.2.1 tqdm==4.67.1
+#
+# Verify before training a single step:
+#   python -c "import torch;print(torch.__version__, torch.cuda.is_available(), torch.cuda.get_device_name(0))"
