@@ -96,22 +96,67 @@ def decide(r: dict) -> dict:
     }
 
 
+CENSUS = Path(__file__).with_name("dataset_census.json")
+
+
+def from_census(split: str = "train") -> dict:
+    """Build the same report shape from Kaggle's authoritative file-tree counts.
+
+    Kaggle's API reports per-age file counts directly, so the band decision can be made
+    before downloading 2.16 GB. `scan()` on the extracted data remains the ground truth —
+    this is the same measurement, taken earlier.
+    """
+    census = json.loads(CENSUS.read_text())
+    counts = {int(k): v for k, v in census["counts_by_age"][split].items()}
+    keys = sorted(counts)
+    per_decade: Counter = Counter()
+    for a, n in counts.items():
+        per_decade[(a // 10) * 10] += n
+
+    return {
+        "source": f"census:{split}",
+        "total_images": sum(counts.values()),
+        "labelled": sum(counts.values()),
+        "unlabelled": 0,
+        "distinct_ages": len(keys),
+        "age_min": keys[0],
+        "age_max": keys[-1],
+        "counts_by_age": {str(k): counts[k] for k in keys},
+        "counts_by_decade": {str(k): per_decade[k] for k in sorted(per_decade)},
+        "under_18": sum(v for k, v in counts.items() if k < 18),
+        "over_64": sum(v for k, v in counts.items() if k > 64),
+        "top_level_dirs": [census["trees"]["full_lifespan"]["root"]],
+    }
+
+
 def main() -> int:
-    root = Path(sys.argv[1] if len(sys.argv) > 1 else "data")
+    arg = sys.argv[1] if len(sys.argv) > 1 else "data"
+
+    if arg == "--census":
+        report = from_census("train")
+        report["decision"] = decide(report)
+        REPORT.write_text(json.dumps(report, indent=2))
+        _print(report, "census (Kaggle file tree, no download)")
+        return 0
+
+    root = Path(arg)
     if not root.is_dir():
-        print(f"not a directory: {root}\nusage: python ml/gate0.py <dataset_root>")
+        print(f"not a directory: {root}\nusage: python ml/gate0.py <dataset_root> | --census")
         return 2
 
     report = scan(root)
     report["decision"] = decide(report)
     REPORT.write_text(json.dumps(report, indent=2))
-
-    print(f"\n--- GATE 0 · {root} ---")
     if "error" in report:
-        print(f"FAILED: {report['error']}")
+        print(f"\n--- GATE 0 · {root} ---\nFAILED: {report['error']}")
         print("layout sample:", report.get("layout"))
         return 1
+    _print(report, str(root))
+    return 0
 
+
+def _print(report: dict, label: str) -> None:
+    print(f"\n--- GATE 0 · {label} ---")
     print(f"images         {report['total_images']} ({report['unlabelled']} unlabelled)")
     print(f"age range      {report['age_min']} - {report['age_max']} "
           f"({report['distinct_ages']} distinct)")
@@ -124,7 +169,6 @@ def main() -> int:
     print(f"because        {d['reason']}")
     print(f"per-band MAE   {'MANDATORY' if d['per_band_mae_mandatory'] else 'optional'}")
     print(f"\nreport written to {REPORT}")
-    return 0
 
 
 def _selfcheck() -> None:

@@ -85,14 +85,24 @@ hardcode an age boundary. Invariants:
 ### Band set is chosen by measurement, not assumption
 
 `ACTIVE_BAND_SET` in `server/bands.py` must be set from `ml/gate0.py` output, not by hand.
-The Kaggle dataset (`mariafrenti/age-prediction`) states ages 1–100 while a public
-reimplementation used a 20–50 subset, and the page is JS-rendered so it cannot be read
-programmatically. Gate 0 scans the downloaded data and reports which band set the labels
-actually support. Claiming paediatric or geriatric banding on an adult-only dataset is
-unsupportable in front of a panel — so it is gated on evidence.
+Claiming paediatric or geriatric banding on an adult-only dataset is unsupportable in
+front of a panel, so it is gated on evidence.
 
-Gate 0 does **not** block the API, frontend, or contract work; it only sets band
-boundaries and the framing slide.
+**Gate 0 is CLEARED — `lifespan`.** The apparent contradiction (Kaggle says 1–100, a public
+reimplementation used 20–50) resolved: the dataset ships **two independent trees**,
+`age_prediction_up/age_prediction/` (100 age folders) and `20-50/20-50/` (31 age folders),
+each with its own train/test split. We use the full-lifespan tree.
+
+Measured counts live in `ml/dataset_census.json`, read from Kaggle's file-tree API via the
+Kaggle MCP server — no download needed. Train split: 185,632 images, ages 1–100, under-18
+n=8,119 (4.4%), over-64 n=9,178 (4.9%). Reproduce with `python ml/gate0.py --census`;
+`python ml/gate0.py data/` re-measures the extracted files and remains the ground truth.
+
+**The 90+ tail is 273 images.** Per-band MAE is mandatory, not optional — a single headline
+MAE would hide that the geriatric band is barely supported.
+
+The Kaggle web page is JS-rendered and unreadable by WebFetch. Use the Kaggle MCP tools
+(`get_dataset_info`, `list_dataset_tree_files`) instead — do not retry WebFetch on it.
 
 ### Image bytes never persist
 
@@ -136,11 +146,14 @@ backbone — cut for time on purpose.
 Design brief was *"professional interface, not AI slop."* It is built as a clinical
 instrument panel, not a web app. If you touch the UI, hold these:
 
-- Near-black ground, **hairline rules instead of cards**. No gradients, no decorative
-  shadows, no rounded blobs, no emoji.
-- **One accent** (amber, `--color-signal`). It means "a human must look at this." Never
+- **Light clinical paper**, not a dark console. Warm off-white ground (`--color-bg`),
+  white panels separated by **hairline rules instead of cards and shadows**.
+- **Banned outright:** pure black, any purple or violet, gradients, glow, glassmorphism.
+  These are the tells that make an interface read as AI-generated. This is a hard rule.
+- **One accent** (ochre, `--color-signal`). It means "a human must look at this." Never
   decorative. Outcome colors are data; if a color is not carrying meaning it comes off.
 - Every numeric renders in IBM Plex Mono with tabular numerals so digits column-align.
+  Labels and prose are Instrument Sans.
 - Fonts are self-hosted via `@fontsource` and imported in `main.tsx`. **Do not switch to a
   CDN font link** — the demo machine runs offline and would fall back to serif in front of
   the panel.

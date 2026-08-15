@@ -1,78 +1,76 @@
 @import "tailwindcss";
 
 /* ---------------------------------------------------------------------------
-   Clinical instrument console.
+   Clinical paper.
 
-   Reference points are radiology viewers and lab equipment panels, not web apps:
-   near-black ground, hairline rules instead of cards, monospace for every number
-   so digits align in columns, and exactly one accent — amber — which means
-   "a human needs to look at this" and is never used decoratively.
+   Reference points are a printed lab report and a hospital records terminal —
+   not a dashboard template. Warm off-white ground, white panels floated on it by
+   a hairline rather than a shadow, ink that is charcoal rather than black, and
+   measurements set in mono so columns of digits line up the way they do on a
+   printed chart.
 
-   Status colour is data. If it is not carrying meaning, it is not on screen.
+   Deliberately excluded: pure black, any purple or violet, gradients, glow,
+   glassmorphism, rounded pill everything. One accent — ochre — and it means
+   "a human must look at this". Colour that is not carrying meaning is not used.
 --------------------------------------------------------------------------- */
 
 @theme {
-  --color-bg: #0b0d0e;
-  --color-panel: #121517;
-  --color-raised: #171b1e;
-  --color-line: #222a2e;
-  --color-line-strong: #333d43;
-  --color-ink: #e6eaec;
-  --color-ink-dim: #97a1a8;
-  --color-ink-faint: #626c73;
+  /* ground and surfaces */
+  --color-bg: #f4f3ef;
+  --color-panel: #fffefc;
+  --color-raised: #eeece6;
+  --color-line: #dedbd2;
+  --color-line-strong: #c3bfb2;
+
+  /* ink — charcoal with a green cast, never #000 */
+  --color-ink: #23282a;
+  --color-ink-dim: #5c635f;
+  --color-ink-faint: #8b918b;
 
   /* the one accent: attention / manual review */
-  --color-signal: #e3a44f;
-  --color-signal-dim: #6b4f24;
+  --color-signal: #b06a12;
+  --color-signal-wash: #f6ead6;
 
-  /* outcome states — desaturated so they read clinical, not traffic-light */
-  --color-ok: #74a78d;
-  --color-stop: #c97a6d;
+  /* outcome states — muted apothecary tones, readable on paper */
+  --color-ok: #2f6b4f;
+  --color-stop: #a2412f;
 
-  --font-ui: "Archivo Variable", ui-sans-serif, sans-serif;
+  --font-ui: "Instrument Sans Variable", ui-sans-serif, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
 }
 
 @layer base {
   html {
-    color-scheme: dark;
+    color-scheme: light;
   }
 
   body {
     background-color: var(--color-bg);
     color: var(--color-ink);
     font-family: var(--font-ui);
-    font-feature-settings: "ss01";
     -webkit-font-smoothing: antialiased;
-    /* Scanline texture at 2% — reads as instrument glass, invisible unless looked for. */
-    background-image: repeating-linear-gradient(
-      0deg,
-      rgb(255 255 255 / 0.02) 0px,
-      rgb(255 255 255 / 0.02) 1px,
-      transparent 1px,
-      transparent 3px
-    );
+    text-rendering: optimizeLegibility;
   }
 
-  /* Numbers are readings. They align in columns or they are useless. */
+  /* Numbers are measurements. They align in columns or they are useless. */
   :where(td, th) {
     font-variant-numeric: tabular-nums;
   }
 
   ::selection {
-    background: var(--color-signal-dim);
+    background: var(--color-signal-wash);
     color: var(--color-ink);
   }
 
   *:focus-visible {
-    outline: 1px solid var(--color-signal);
-    outline-offset: 2px;
+    outline: 2px solid var(--color-signal);
+    outline-offset: 1px;
   }
 
-  /* Thin instrument scrollbars */
+  /* Thin, paper-coloured scrollbars */
   ::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+    width: 11px;
+    height: 11px;
   }
   ::-webkit-scrollbar-track {
     background: var(--color-bg);
@@ -86,13 +84,13 @@
 @utility label {
   font-size: 0.625rem;
   line-height: 1;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--color-ink-faint);
   font-weight: 600;
 }
 
-/* One orchestrated reveal on result, staggered. Not scattered micro-animation. */
+/* One orchestrated reveal on result. Not scattered micro-animation. */
 @keyframes rise {
   from {
     opacity: 0;

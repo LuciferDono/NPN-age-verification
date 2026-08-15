@@ -96,7 +96,7 @@ export function Btn({
 }) {
   const styles = {
     default: "border-line-strong text-ink hover:border-ink-faint hover:bg-raised",
-    primary: "border-signal text-signal hover:bg-signal-dim/30",
+    primary: "border-signal text-signal hover:bg-signal-wash",
     quiet: "border-transparent text-ink-dim hover:text-ink hover:border-line-strong",
   }[variant];
   return (

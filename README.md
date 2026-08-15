@@ -119,9 +119,12 @@ Stated here rather than discovered by a reviewer:
   evaluation set (e.g. FairFace). Residuals are sliced by age band instead, which the
   labels do support.
 - **Dataset age range is measured, not assumed.** The Kaggle page states 1–100 while a
-  public reimplementation used a 20–50 subset. `ml/gate0.py` measures the real
-  distribution and picks the defensible band set; claiming paediatric or geriatric
-  banding on an adult-only dataset would be unsupportable.
+  public reimplementation used a 20–50 subset. Both are true: the dataset ships two
+  independent trees. Gate 0 read the authoritative per-age file counts and recorded them
+  in `ml/dataset_census.json` — 185,632 training images spanning ages 1–100, with
+  under-18 at 8,119 (4.4%) and over-64 at 9,178 (4.9%). Both clear the 2% floor, so
+  lifespan banding is supportable. **The 90+ tail is only 273 images**, which is why MAE
+  is reported per band rather than as a single headline number.
 - **Confidence is validated, not asserted.** MAE is reported per confidence decile so the
   routing rule can be checked: if low-confidence predictions are not actually the wrong
   ones, the review queue is theatre. The threshold is a percentile so the rule holds

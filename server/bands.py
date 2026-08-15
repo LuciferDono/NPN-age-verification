@@ -32,7 +32,12 @@ BAND_SETS = {
     ],
 }
 
-ACTIVE_BAND_SET = "adult_only"  # ← Gate 0 flips this, nothing else
+# Set by Gate 0 from measured label counts, not by hand. See ml/dataset_census.json.
+# Evidence (train split, n=185,632): ages 1-100 present, under-18 n=8,119 (4.4%),
+# over-64 n=9,178 (4.9%) — both clear the 2% floor, so lifespan banding is supportable.
+# Caveat that must stay on the slide: the 90+ tail is only 273 images, so per-band MAE
+# is reported rather than a single headline number.
+ACTIVE_BAND_SET = "lifespan"
 
 POLICIES = {
     "trial_eligibility_v1": {
@@ -131,13 +136,16 @@ def indeterminate(policy_id: str = "trial_eligibility_v1") -> dict:
 
 def _selfcheck() -> None:
     """Run: python server/bands.py"""
+    assert ACTIVE_BAND_SET == "lifespan", "Gate 0 measured 1-100; see ml/dataset_census.json"
+    assert band_for(8)["id"] == "paediatric"
     assert band_for(25)["id"] == "young_adult"
     assert band_for(35)["id"] == "adult"
-    assert band_for(70)["id"] == "older_adult"
-    assert band_for(3)["id"] == "young_adult", "clamps below range, never None"
+    assert band_for(70)["id"] == "geriatric"
+    assert band_for(-3)["id"] == "paediatric", "clamps below range, never None"
+    assert band_for(150)["id"] == "geriatric", "clamps above range, never None"
 
-    assert boundaries() == [30, 50]
-    assert straddles_boundary((28.0, 32.0)) is True
+    assert boundaries() == [18, 30, 50, 65]
+    assert straddles_boundary((16.0, 19.0)) is True, "the minor/adult edge, the one that matters"
     assert straddles_boundary((31.0, 34.0)) is False
 
     # low confidence beats an otherwise-verifiable age
