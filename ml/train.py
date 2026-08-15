@@ -24,14 +24,21 @@ from pathlib import Path
 import torch
 from torch import Tensor
 
-from .data import DEFAULT_ROOT, loaders
-from .model import AgeModel, decode
+from server import bands as bandsmod
 
-CKPT_ROOT = Path("checkpoints")
-BANDS = [
-    ("paediatric", 0, 17), ("young_adult", 18, 29), ("adult", 30, 49),
-    ("older_adult", 50, 64), ("geriatric", 65, 120),
-]
+from .data import DEFAULT_ROOT, loaders
+from .model import IMAGE_SIZE, AgeModel, decode
+
+CKPT_ROOT = Path(__file__).resolve().parent.parent / "checkpoints"
+
+# Imported, never redeclared: server/bands.py is the single owner of age boundaries, so
+# published per-band MAE is computed against exactly the bands the API decides with.
+BANDS = [(b["id"], b["min"], b["max"]) for b in bandsmod.bands()]
+
+# The 90+ tail is 273 training images. Reported separately because it sits inside
+# "geriatric", and a band-level number would hide it the same way a single headline MAE
+# would hide the band-level ones.
+SUB_BANDS = [("geriatric_90plus", 90, 120)]
 
 
 def device() -> torch.device:
@@ -39,11 +46,18 @@ def device() -> torch.device:
 
 
 @torch.no_grad()
-def evaluate(model: AgeModel, loader, dev: torch.device) -> dict:
-    """Predictions over a whole split, plus the metrics derived from them."""
+def evaluate(model: AgeModel, loader, dev: torch.device, amp: bool = True) -> dict:
+    """Predictions over a whole split, plus the metrics derived from them.
+
+    `amp=False` for the final pass that produces shipped artifacts. Serving runs fp32,
+    and confidence is a normalised entropy that sigma=2 soft labels compress into a
+    narrow range — measuring the quantiles in a different precision than serve time
+    would shift a live prediction by several percentiles, which is exactly the quantity
+    the review-routing threshold reads.
+    """
     model.eval()
     ages, preds, confs = [], [], []
-    use_amp = dev.type == "cuda"
+    use_amp = amp and dev.type == "cuda"
     for x, y in loader:
         x = x.to(dev, non_blocking=True)
         with torch.autocast("cuda", dtype=torch.float16, enabled=use_amp):
@@ -81,10 +95,14 @@ def _band_accuracy(ages: Tensor, preds: Tensor) -> float:
 
 
 def _per_band_mae(ages: Tensor, err: Tensor) -> list[dict]:
-    """MAE within each clinical band. Mandatory: the 90+ tail is 273 training images,
-    and a single headline MAE would hide how weak the model is there."""
+    """MAE within each clinical band, plus the sparse sub-tail.
+
+    Mandatory rather than optional: a single headline MAE would hide how weak the model
+    is in the thin bands, and a band-level geriatric number would in turn hide the 90+
+    tail inside it.
+    """
     out = []
-    for name, lo, hi in BANDS:
+    for name, lo, hi in BANDS + SUB_BANDS:
         m = (ages >= lo) & (ages <= hi)
         n = int(m.sum())
         out.append({"band": name, "n": n,
@@ -124,6 +142,40 @@ def monotonic_fraction(rows: list[dict]) -> float:
     return drops / (len(rows) - 1)
 
 
+# --- pre-registered go/no-go for the review queue ---------------------------
+# Written down before the first run, and deliberately stated in terms of the quantity
+# routing actually uses. Per-sample rank correlation between confidence and |error| is
+# noisy enough that a well-calibrated model would still miss a demanding threshold, so
+# a bar set that way would pre-register a "our queue is theatre" slide regardless of the
+# model. These two are the honest test, and moving them after seeing the numbers is the
+# exact dishonesty pre-registration exists to prevent.
+QUEUE_MAE_RATIO_MIN = 1.30      # bottom-decile MAE / top-decile MAE
+QUEUE_MONOTONIC_MIN = 0.70      # share of adjacent deciles that improve
+
+
+def queue_verdict(rows: list[dict]) -> dict:
+    """Does confidence actually predict error? Decides what the slide says."""
+    if len(rows) < 2:
+        return {"passed": False, "reason": "not enough deciles"}
+    ratio = rows[0]["mae"] / rows[-1]["mae"] if rows[-1]["mae"] else float("inf")
+    mono = monotonic_fraction(rows)
+    passed = ratio >= QUEUE_MAE_RATIO_MIN and mono >= QUEUE_MONOTONIC_MIN
+    return {
+        "passed": passed,
+        "bottom_top_mae_ratio": round(ratio, 3),
+        "monotonic_fraction": round(mono, 3),
+        "thresholds": {"ratio_min": QUEUE_MAE_RATIO_MIN, "monotonic_min": QUEUE_MONOTONIC_MIN},
+        "claim": (
+            "Low-confidence predictions are measurably worse, so confidence-based "
+            "routing is doing real work."
+            if passed else
+            "Confidence does not reliably predict error on this model. The review queue "
+            "routes on interval-straddles-band-boundary only; the percentile rule is "
+            "reported but not defensible."
+        ),
+    }
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--head", choices=["dist", "scalar"], default="dist")
@@ -133,6 +185,11 @@ def main() -> int:
     ap.add_argument("--lr", type=float, default=3e-4)
     ap.add_argument("--limit-per-age", type=int, default=None)
     ap.add_argument("--root", type=Path, default=DEFAULT_ROOT)
+    ap.add_argument("--size", type=int, default=IMAGE_SIZE)
+    # Runs must not overwrite each other: model.pt and metrics.json ship as a pair, and
+    # a mismatched pair silently mis-thresholds routing because confidence_quantiles
+    # belong to one specific set of weights.
+    ap.add_argument("--tag", default="", help="suffix for the checkpoint dir")
     args = ap.parse_args()
 
     dev = device()
@@ -140,7 +197,8 @@ def main() -> int:
     print(f"head        {args.head}")
 
     train_dl, val_dl, test_dl = loaders(
-        args.root, args.batch_size, args.workers, limit_per_age=args.limit_per_age)
+        args.root, args.batch_size, args.workers, limit_per_age=args.limit_per_age,
+        size=args.size)
     print(f"train/val/test  {len(train_dl.dataset):,} / {len(val_dl.dataset):,} / "
           f"{len(test_dl.dataset):,}")
 
@@ -150,7 +208,7 @@ def main() -> int:
         opt, max_lr=args.lr, total_steps=args.epochs * len(train_dl), pct_start=0.25)
     scaler = torch.amp.GradScaler("cuda", enabled=dev.type == "cuda")
 
-    out_dir = CKPT_ROOT / args.head
+    out_dir = CKPT_ROOT / (args.head + (f"-{args.tag}" if args.tag else ""))
     out_dir.mkdir(parents=True, exist_ok=True)
     best = float("inf")
 
@@ -189,9 +247,14 @@ def main() -> int:
     ck = torch.load(out_dir / "model.pt", map_location=dev, weights_only=True)
     model.load_state_dict(ck["state_dict"])
 
-    val = evaluate(model, val_dl, dev)
-    test = evaluate(model, test_dl, dev)
-    cal = calibration_table(val["_confs"], val["_ages"], val["_preds"])
+    # fp32 for the artifact-producing pass: these numbers ship and must match serving.
+    val = evaluate(model, val_dl, dev, amp=False)
+    test = evaluate(model, test_dl, dev, amp=False)
+
+    # Calibration evidence comes from the untouched test split — val chose the epoch, so
+    # using it here would be grading the queue on the data that selected the model.
+    # Quantiles stay on val: they define the routing threshold, not the evidence for it.
+    cal = calibration_table(test["_confs"], test["_ages"], test["_preds"])
     quantiles = sorted(val["_confs"])
 
     metrics = {
@@ -203,6 +266,7 @@ def main() -> int:
         "test": {k: v for k, v in test.items() if not k.startswith("_")},
         "calibration": cal,
         "calibration_monotonic_fraction": monotonic_fraction(cal),
+        "queue_verdict": queue_verdict(cal),
         # 101 points: percentile 0..100 of the validation confidence distribution.
         # The API maps a live confidence onto this to get confidence_percentile.
         "confidence_quantiles": [
@@ -220,8 +284,11 @@ def main() -> int:
     for r in test["per_band_mae"]:
         print(f"   {r['band']:12} n={r['n']:6,}  MAE {r['mae']:.2f}" if r["mae"]
               else f"   {r['band']:12} n=0")
-    print(f"calibration monotonic  {metrics['calibration_monotonic_fraction']:.0%} "
-          f"of adjacent deciles improve")
+    v = metrics["queue_verdict"]
+    print(f"\nreview queue   {'PASS' if v['passed'] else 'FAIL'}  "
+          f"(bottom/top decile MAE {v['bottom_top_mae_ratio']}x, "
+          f"monotonic {v['monotonic_fraction']:.0%})")
+    print(f"   {v['claim']}")
     print(f"\nwritten to {out_dir}")
     return 0
 

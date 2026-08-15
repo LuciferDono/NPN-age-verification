@@ -22,10 +22,21 @@ from PIL import Image
 from .data import build_transforms
 from .model import AgeModel, decode
 
-CKPT_ROOT = Path("checkpoints")
+# Absolute, not cwd-relative: uvicorn is started from wherever the demo laptop happens
+# to be, and a checkpoint that silently fails to resolve means a blank console on stage.
+CKPT_ROOT = Path(__file__).resolve().parent.parent / "checkpoints"
 DEFAULT_HEAD = "dist"
 MIN_FACE_PX = 64          # below this the crop carries too little detail to be honest
 VERSION = "1.0.0"
+
+# Measured on 300 training images: the Haar box covers a median 0.55 of the frame the
+# model was trained on, so reproducing that framing needs ~41% padding per side. The
+# previous 18% cropped visibly tighter than training — a train/serve mismatch.
+FACE_PAD = 0.41
+
+# Same probe: the cascade found a face in only 231/300 (77%) of clean, frontal,
+# already-cropped training images. A detector that weak must not hold a veto.
+PRECROPPED_PX = 200       # at or below this, near-square, treat the frame as the face
 
 
 class Predictor:
@@ -84,40 +95,63 @@ class Predictor:
         except Exception:
             return {"status": "low_quality", "quality_reason": "file is not a readable image"}
 
-        try:
-            boxes = self._faces(img)
-        except Exception:
-            boxes = []                      # detector unavailable: fall back to whole frame
+        # A small near-square image is already a face crop in this dataset's own format;
+        # running a cascade over it mostly produces false negatives on valid input.
+        precropped = (max(img.size) <= PRECROPPED_PX
+                      and 0.9 <= img.width / img.height <= 1.11)
+
+        boxes: list[tuple[int, int, int, int]] = []
+        if not precropped:
+            try:
+                boxes = self._faces(img)
+            except Exception:
+                boxes = []                  # detector unavailable: fall back to whole frame
 
         face_box = None
+        degraded: str | None = None
+
         if len(boxes) > 1:
-            return {"status": "multi_face", "face_box": list(max(boxes, key=lambda b: b[2] * b[3]))}
+            return {"status": "multi_face",
+                    "face_box": list(max(boxes, key=lambda b: b[2] * b[3]))}
+
         if len(boxes) == 1:
             x, y, w, h = boxes[0]
             if min(w, h) < MIN_FACE_PX:
                 return {"status": "low_quality",
                         "quality_reason": f"face region {w}x{h}px, below {MIN_FACE_PX}px minimum",
                         "face_box": [x, y, w, h]}
-            pad = int(0.18 * max(w, h))     # cascade crops tight; give the model context
+            pad = int(FACE_PAD * max(w, h))
             img = img.crop((max(0, x - pad), max(0, y - pad),
                             min(img.width, x + w + pad), min(img.height, y + h + pad)))
             face_box = [x, y, w, h]
-        elif self._detector is not None:
-            return {"status": "no_face"}
+        elif not precropped:
+            # Detector found nothing. It is only 77% recall on our own clean data, so a
+            # miss is far more likely to be a weak cascade than an absent face. Predict on
+            # the whole frame and force the case to a human instead of rejecting it —
+            # "review beats verified and rejected" applies to this path too.
+            degraded = "face region not localised; predicted on the full frame"
 
         with torch.no_grad():
             x_t = self.tf(img).unsqueeze(0).to(self.device)
             out = self.model(x_t)
         d = decode(out.float(), self.head)[0]
 
-        return {
+        pct = self._percentile(d.confidence)
+        out_body = {
             "status": "ok",
             "age_estimate": round(d.age, 1),
             "age_interval": [round(d.lo, 1), round(d.hi, 1)],
             "confidence": round(d.confidence, 3),
-            "confidence_percentile": round(self._percentile(d.confidence), 3),
+            "confidence_percentile": round(pct, 3),
             "face_box": face_box,
         }
+        if degraded:
+            # Force this into the review band rather than letting a full-frame guess be
+            # auto-actioned. bands.decide() routes anything at or below the percentile
+            # threshold, so pinning it to 0.0 is what makes the downgrade binding.
+            out_body["confidence_percentile"] = 0.0
+            out_body["degraded"] = degraded
+        return out_body
 
     def meta(self) -> dict:
         return {

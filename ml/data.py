@@ -74,10 +74,17 @@ def stratified_split(
     return train, val
 
 
-def build_transforms(train: bool):
+def build_transforms(train: bool, size: int = IMAGE_SIZE):
+    """Transforms for the 128x128 pre-cropped source images.
+
+    The source is already a tight face crop, so the usual Resize-then-CenterCrop eval
+    pipeline is wrong here: it would discard the outer ~12% of the frame, which on this
+    data is chin and hairline — both load-bearing for age. Resize the whole frame instead,
+    and keep the training crop conservative for the same reason.
+    """
     if train:
         return transforms.Compose([
-            transforms.RandomResizedCrop(IMAGE_SIZE, scale=(0.75, 1.0), ratio=(0.9, 1.11)),
+            transforms.RandomResizedCrop(size, scale=(0.85, 1.0), ratio=(0.95, 1.05)),
             transforms.RandomHorizontalFlip(),
             # Mild only. Heavy colour jitter teaches the model that skin tone is noise,
             # which is the wrong lesson for a system already weak on demographic fairness.
@@ -87,17 +94,16 @@ def build_transforms(train: bool):
             transforms.RandomErasing(p=0.20, scale=(0.02, 0.10)),
         ])
     return transforms.Compose([
-        transforms.Resize(int(IMAGE_SIZE * 1.14)),
-        transforms.CenterCrop(IMAGE_SIZE),
+        transforms.Resize((size, size)),
         transforms.ToTensor(),
         transforms.Normalize(MEAN, STD),
     ])
 
 
 class AgeFolder(Dataset):
-    def __init__(self, items: list[tuple[Path, int]], train: bool):
+    def __init__(self, items: list[tuple[Path, int]], train: bool, size: int = IMAGE_SIZE):
         self.items = items
-        self.tf = build_transforms(train)
+        self.tf = build_transforms(train, size)
 
     def __len__(self) -> int:
         return len(self.items)
@@ -113,7 +119,8 @@ class AgeFolder(Dataset):
 
 
 def loaders(root: Path = DEFAULT_ROOT, batch_size: int = 96, workers: int = 8,
-            val_frac: float = 0.1, limit_per_age: int | None = None):
+            val_frac: float = 0.1, limit_per_age: int | None = None,
+            size: int = IMAGE_SIZE):
     """train/val/test DataLoaders. `limit_per_age` caps samples per age for smoke runs."""
     train_items = find_items(root / "train")
     test_items = find_items(root / "test")
@@ -130,10 +137,11 @@ def loaders(root: Path = DEFAULT_ROOT, batch_size: int = 96, workers: int = 8,
     common = dict(num_workers=workers, pin_memory=True,
                   persistent_workers=workers > 0, drop_last=False)
     return (
-        DataLoader(AgeFolder(tr, True), batch_size=batch_size, shuffle=True, **common),
-        DataLoader(AgeFolder(va, False), batch_size=batch_size * 2, shuffle=False, **common),
-        DataLoader(AgeFolder(test_items, False), batch_size=batch_size * 2, shuffle=False,
+        DataLoader(AgeFolder(tr, True, size), batch_size=batch_size, shuffle=True, **common),
+        DataLoader(AgeFolder(va, False, size), batch_size=batch_size * 2, shuffle=False,
                    **common),
+        DataLoader(AgeFolder(test_items, False, size), batch_size=batch_size * 2,
+                   shuffle=False, **common),
     )
 
 

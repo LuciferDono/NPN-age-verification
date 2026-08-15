@@ -91,10 +91,14 @@ def decode(out: Tensor, head: str) -> list[Decoded]:
     centres = bin_centres(out.device)
     ages = (p * centres).sum(1)                               # expected value
 
-    # 10th / 90th percentile of the predicted distribution -> 80% interval
+    # 10th / 90th percentile of the predicted distribution -> 80% interval.
+    # Widened by half a bin on each side: the quantiles are bin *centres*, so a very
+    # confident model puts both inside one bin and the interval collapses to zero width.
+    # A zero-width interval can never straddle a band boundary, which would silently
+    # disable one of the two review-routing rules.
     cdf = p.cumsum(1)
-    lo = _quantile_from_cdf(cdf, centres, 0.10)
-    hi = _quantile_from_cdf(cdf, centres, 0.90)
+    lo = _quantile_from_cdf(cdf, centres, 0.10) - 0.5
+    hi = _quantile_from_cdf(cdf, centres, 0.90) + 0.5
 
     # Concentration: 1 - normalised entropy. Peaked -> near 1, flat -> near 0.
     entropy = -(p.clamp_min(1e-12).log() * p).sum(1)

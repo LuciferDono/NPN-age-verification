@@ -92,7 +92,10 @@ def _mock_predict(digest: str) -> dict:
 def _model_meta() -> dict:
     if MOCK:
         return {"name": "mock", "version": "0.0.0-mock", "head": "dist_bins"}
-    return _load_predictor().meta()
+    try:
+        return _load_predictor().meta()
+    except Exception as exc:  # noqa: BLE001 - never let model loading blank the console
+        return {"name": "unavailable", "version": "-", "head": "-", "error": str(exc)[:200]}
 
 
 # --- endpoints -------------------------------------------------------------
@@ -108,8 +111,14 @@ def meta() -> dict:
     metrics = {"mae": None, "cs5": None, "band_accuracy": None, "baseline_mae": None}
     calibration: list[dict] = []
     if not MOCK:
-        p = _load_predictor()
-        metrics, calibration = p.metrics(), p.calibration()
+        # Bands and policy must render even if the model cannot load. A 500 here means a
+        # blank console in front of the panel; missing metrics only means empty cells,
+        # which the UI already renders as "not measured".
+        try:
+            p = _load_predictor()
+            metrics, calibration = p.metrics(), p.calibration()
+        except Exception:  # noqa: BLE001
+            pass
     return {
         "model": _model_meta(),
         "bands": bands.bands(),
