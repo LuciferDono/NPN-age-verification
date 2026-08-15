@@ -190,6 +190,8 @@ def main() -> int:
     # a mismatched pair silently mis-thresholds routing because confidence_quantiles
     # belong to one specific set of weights.
     ap.add_argument("--tag", default="", help="suffix for the checkpoint dir")
+    ap.add_argument("--resume", action="store_true",
+                    help="continue from the checkpoint in the tagged dir")
     args = ap.parse_args()
 
     dev = device()
@@ -202,17 +204,32 @@ def main() -> int:
     print(f"train/val/test  {len(train_dl.dataset):,} / {len(val_dl.dataset):,} / "
           f"{len(test_dl.dataset):,}")
 
-    model = AgeModel(head=args.head).to(dev)
-    opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
-    sched = torch.optim.lr_scheduler.OneCycleLR(
-        opt, max_lr=args.lr, total_steps=args.epochs * len(train_dl), pct_start=0.25)
-    scaler = torch.amp.GradScaler("cuda", enabled=dev.type == "cuda")
-
     out_dir = CKPT_ROOT / (args.head + (f"-{args.tag}" if args.tag else ""))
     out_dir.mkdir(parents=True, exist_ok=True)
-    best = float("inf")
 
-    for epoch in range(1, args.epochs + 1):
+    model = AgeModel(head=args.head).to(dev)
+    best = float("inf")
+    start_epoch = 1
+
+    # Resolve the starting epoch before the scheduler is built: OneCycle needs the exact
+    # number of steps it will actually run, and it restarts its schedule on a resume.
+    if args.resume and (out_dir / "model.pt").exists():
+        # Only weights and the score are restored — optimizer and scheduler state are not
+        # checkpointed. Good enough to salvage a crashed run; not equivalent to an
+        # uninterrupted one, and the metrics record that it was resumed.
+        ck = torch.load(out_dir / "model.pt", map_location=dev, weights_only=True)
+        model.load_state_dict(ck["state_dict"])
+        best, start_epoch = ck["val_mae"], ck["epoch"] + 1
+        print(f"resumed     epoch {ck['epoch']} (val MAE {best:.3f}) -> continuing "
+              f"from epoch {start_epoch}")
+
+    remaining = max(1, args.epochs - start_epoch + 1)
+    opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
+    sched = torch.optim.lr_scheduler.OneCycleLR(
+        opt, max_lr=args.lr, total_steps=remaining * len(train_dl), pct_start=0.25)
+    scaler = torch.amp.GradScaler("cuda", enabled=dev.type == "cuda")
+
+    for epoch in range(start_epoch, args.epochs + 1):
         model.train()
         t0, running = time.time(), 0.0
         for step, (x, y) in enumerate(train_dl, 1):

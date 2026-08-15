@@ -10,6 +10,7 @@ than at integration on day 2.
 from __future__ import annotations
 
 import hashlib
+import os
 import sys
 from pathlib import Path
 
@@ -34,6 +35,11 @@ ENVELOPE_KEYS = {
 }
 
 
+MOCK = os.getenv("NPN_MOCK", "1") == "1"
+
+SAMPLES = Path(__file__).resolve().parent.parent / "data/age_prediction_up/age_prediction/test"
+
+
 def image_with_digest_prefix(prefix: str) -> bytes:
     """Mock mode branches on the image digest; brute-force a matching payload."""
     for n in range(100_000):
@@ -41,6 +47,17 @@ def image_with_digest_prefix(prefix: str) -> bytes:
         if hashlib.sha256(data).hexdigest().startswith(prefix):
             return data
     raise AssertionError(f"no payload found for prefix {prefix!r}")
+
+
+def sample_image() -> bytes:
+    """A real held-out face, for the tests that need the model to actually predict."""
+    for folder in ("030", "025", "040"):
+        d = SAMPLES / folder
+        if d.is_dir():
+            for p in sorted(d.iterdir()):
+                if p.suffix.lower() in {".jpg", ".jpeg", ".png"}:
+                    return p.read_bytes()
+    raise AssertionError(f"no sample image under {SAMPLES} — is the dataset extracted?")
 
 
 def post(data: bytes, policy: str = "trial_eligibility_v1"):
@@ -53,26 +70,36 @@ def post(data: bytes, policy: str = "trial_eligibility_v1"):
 
 def test_health_and_meta() -> None:
     h = client.get("/api/health").json()
-    assert h["ok"] is True and h["mock"] is True, "default must be MOCK"
+    assert h["ok"] is True
+    assert h["mock"] is MOCK
 
     m = client.get("/api/meta").json()
-    assert m["mock"] is True, "UI must be able to show a mock badge"
+    assert m["mock"] is MOCK, "the UI badge must reflect the real mode"
     assert m["bands"] == bands.bands()
     assert m["review_percentile"] == bands.REVIEW_PERCENTILE
-    assert set(m["metrics"]) == {"mae", "cs5", "band_accuracy", "baseline_mae"}
-    assert all(v is None for v in m["metrics"].values()), "no fake metrics in mock mode"
+    assert set(m["metrics"]) >= {"mae", "cs5", "band_accuracy", "baseline_mae"}
+
+    if MOCK:
+        assert all(m["metrics"][k] is None for k in
+                   ("mae", "cs5", "band_accuracy", "baseline_mae")), \
+            "mock mode must never publish metrics"
+    else:
+        # Real mode: the numbers are measured, and must beat the null model or the
+        # decision path is built on something worse than guessing the mean age.
+        assert m["metrics"]["mae"] < m["metrics"]["baseline_mae"], m["metrics"]
+        assert m["calibration"], "calibration table must ship with the model"
 
 
 def test_predict_ok_envelope() -> None:
-    data = image_with_digest_prefix("a")
+    data = sample_image() if not MOCK else image_with_digest_prefix("a")
     r = post(data)
     assert r.status_code == 200
     b = r.json()
     assert set(b) >= ENVELOPE_KEYS, f"missing: {ENVELOPE_KEYS - set(b)}"
-    assert b["status"] == "ok"
-    assert 18.0 <= b["age_estimate"] <= 70.0
+    assert b["status"] == "ok", b
+    assert 1.0 <= b["age_estimate"] <= 100.0
     lo, hi = b["age_interval"]
-    assert lo < b["age_estimate"] < hi
+    assert lo < b["age_estimate"] < hi, "interval must bracket the estimate"
     assert b["band"] == bands.band_for(b["age_estimate"])
     assert b["decision"]["outcome"] in {"verified", "review", "rejected"}
     assert b["review_required"] == (b["decision"]["outcome"] == "review")
@@ -80,22 +107,32 @@ def test_predict_ok_envelope() -> None:
 
 
 def test_determinism() -> None:
-    data = image_with_digest_prefix("b")
+    data = sample_image() if not MOCK else image_with_digest_prefix("b")
     a, b = post(data).json(), post(data).json()
     assert a["age_estimate"] == b["age_estimate"], "same image must give same answer"
     assert a["request_id"] != b["request_id"], "but a fresh request_id each time"
 
 
 def test_failure_states_share_the_envelope() -> None:
-    for prefix, expected in (("0", "no_face"), ("1", "low_quality")):
-        b = post(image_with_digest_prefix(prefix)).json()
+    """Every non-ok status returns the same envelope with the same fields nulled.
+
+    In mock mode two digest prefixes are reserved as fixtures. Against the real model
+    the natural equivalent is bytes that are not a decodable image, which is the
+    failure a user actually produces.
+    """
+    cases = ([("0", "no_face"), ("1", "low_quality")] if MOCK
+             else [(None, "low_quality")])
+
+    for prefix, expected in cases:
+        payload = image_with_digest_prefix(prefix) if prefix else b"not-an-image" * 64
+        b = post(payload).json()
         assert b["status"] == expected, b["status"]
         assert set(b) >= ENVELOPE_KEYS
         for null_field in ("age_estimate", "age_interval", "confidence",
                            "confidence_percentile", "band"):
             assert b[null_field] is None, f"{expected}.{null_field} must be null"
         assert b["decision"]["outcome"] == "indeterminate"
-        assert b["review_required"] is True
+        assert b["review_required"] is True, "an unusable image must never auto-action"
 
 
 def test_upload_guards() -> None:
@@ -107,14 +144,30 @@ def test_upload_guards() -> None:
 
 
 def test_review_queue_roundtrip() -> None:
-    # Find an image the model is unsure about, so routing is exercised for real.
+    # Find a case the system declines to decide alone, so routing is exercised for real
+    # rather than by inserting a row directly.
     flagged = None
-    for n in range(5000):
-        b = post(b"queue-probe-%d" % n).json()
-        if b["review_required"] and b["status"] == "ok":
-            flagged = b
-            break
-    assert flagged, "no low-confidence sample found in 5000 tries"
+    if MOCK:
+        for n in range(5000):
+            b = post(b"queue-probe-%d" % n).json()
+            if b["review_required"] and b["status"] == "ok":
+                flagged = b
+                break
+    else:
+        # Real model: walk held-out faces until one lands in the review band. Ages near
+        # a band boundary are the likeliest to straddle one, so start there.
+        for folder in ("018", "017", "065", "064", "030", "050"):
+            d = SAMPLES / folder
+            if not d.is_dir():
+                continue
+            for p in sorted(d.iterdir())[:40]:
+                b = post(p.read_bytes()).json()
+                if b["review_required"] and b["status"] == "ok":
+                    flagged = b
+                    break
+            if flagged:
+                break
+    assert flagged, "no case routed to review — the queue path is untested"
 
     q = client.get("/api/review-queue").json()
     ids = [i["request_id"] for i in q["items"]]

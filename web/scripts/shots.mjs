@@ -30,7 +30,7 @@ await page.goto(BASE, { waitUntil: "networkidle" });
 await shot("01-verify-empty");
 
 // 2. a completed assessment — three subjects, so at least one lands in each outcome
-for (const s of ["subject_a", "subject_b", "subject_c"]) {
+for (const s of ["child_08", "teen_17", "adult_34", "senior_72"]) {
   await page.setInputFiles('input[type="file"]', `${SAMPLES}/${s}.jpg`);
   await page.getByRole("button", { name: /analyse/i }).click();
   await page.waitForSelector("text=/Assessment/");

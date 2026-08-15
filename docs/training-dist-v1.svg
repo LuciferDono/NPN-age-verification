@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 300" width="720" height="300">
+<rect width="720" height="300" fill="#f4f3ef"/>
+<line x1="54" y1="266.0" x2="704" y2="266.0" stroke="#dedbd2" stroke-width="1"/><line x1="54" y1="216.4" x2="704" y2="216.4" stroke="#dedbd2" stroke-width="1"/><line x1="54" y1="166.8" x2="704" y2="166.8" stroke="#dedbd2" stroke-width="1"/><line x1="54" y1="117.2" x2="704" y2="117.2" stroke="#dedbd2" stroke-width="1"/><line x1="54" y1="67.6" x2="704" y2="67.6" stroke="#dedbd2" stroke-width="1"/><line x1="54" y1="18.0" x2="704" y2="18.0" stroke="#dedbd2" stroke-width="1"/>
+<text x="46" y="269.5" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="10" fill="#8b918b">5.1</text><text x="46" y="219.9" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="10" fill="#8b918b">6.5</text><text x="46" y="170.3" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="10" fill="#8b918b">7.8</text><text x="46" y="120.7" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="10" fill="#8b918b">9.2</text><text x="46" y="71.1" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="10" fill="#8b918b">10.5</text><text x="46" y="21.5" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="10" fill="#8b918b">11.9</text>
+<line x1="54" y1="38.7" x2="704" y2="38.7"
+      stroke="#a2412f" stroke-width="1.5" stroke-dasharray="5 4"/>
+<text x="704" y="31.7" text-anchor="end"
+      font-family="Instrument Sans, sans-serif" font-size="10" fill="#a2412f">
+  mean-age baseline 11.34</text>
+<polyline points="54.0,205.0 113.1,231.7 172.2,237.6 231.3,239.5 290.4,234.7 349.5,242.3 408.5,245.2 467.6,241.4 526.7,245.2 585.8,243.0 644.9,241.2 704.0,240.8" fill="none" stroke="#23282a" stroke-width="2"
+          stroke-linejoin="round"/>
+<circle cx="54.0" cy="205.0" r="2.5" fill="#23282a"/><circle cx="113.1" cy="231.7" r="2.5" fill="#23282a"/><circle cx="172.2" cy="237.6" r="2.5" fill="#23282a"/><circle cx="231.3" cy="239.5" r="2.5" fill="#23282a"/><circle cx="290.4" cy="234.7" r="2.5" fill="#23282a"/><circle cx="349.5" cy="242.3" r="2.5" fill="#23282a"/><circle cx="408.5" cy="245.2" r="2.5" fill="#23282a"/><circle cx="467.6" cy="241.4" r="2.5" fill="#23282a"/><circle cx="526.7" cy="245.2" r="2.5" fill="#23282a"/><circle cx="585.8" cy="243.0" r="2.5" fill="#23282a"/><circle cx="644.9" cy="241.2" r="2.5" fill="#23282a"/><circle cx="704.0" cy="240.8" r="2.5" fill="#23282a"/>
+<circle cx="408.5" cy="245.2" r="5" fill="none"
+        stroke="#b06a12" stroke-width="2"/>
+<text x="408.5" y="233.2" text-anchor="middle"
+      font-family="IBM Plex Mono, monospace" font-size="11" fill="#b06a12">
+  5.68</text>
+<text x="54.0" y="282" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10" fill="#8b918b">1</text><text x="113.1" y="282" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10" fill="#8b918b">2</text><text x="172.2" y="282" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10" fill="#8b918b">3</text><text x="231.3" y="282" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10" fill="#8b918b">4</text><text x="290.4" y="282" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10" fill="#8b918b">5</text><text x="349.5" y="282" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10" fill="#8b918b">6</text><text x="408.5" y="282" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10" fill="#8b918b">7</text><text x="467.6" y="282" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10" fill="#8b918b">8</text><text x="526.7" y="282" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10" fill="#8b918b">9</text><text x="585.8" y="282" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10" fill="#8b918b">10</text><text x="644.9" y="282" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10" fill="#8b918b">11</text><text x="704.0" y="282" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10" fill="#8b918b">12</text>
+<text x="54" y="294" font-family="Instrument Sans, sans-serif" font-size="10"
+      fill="#5c635f">epoch</text>
+<text x="14" y="22" font-family="Instrument Sans, sans-serif" font-size="10"
+      fill="#5c635f" transform="rotate(-90 14 22)">validation MAE (years)</text>
+</svg>
