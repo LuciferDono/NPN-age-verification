@@ -51,11 +51,16 @@ await page.getByRole("button", { name: /audit trail/i }).click();
 await page.waitForTimeout(300);
 await shot("04-audit-trail");
 
+// 5. model evidence — what makes the numbers on the other screens trustworthy
+await page.getByRole("button", { name: /model evidence/i }).click();
+await page.waitForTimeout(500);
+await shot("05-model-evidence");
+
 // 5. narrow viewport — the panel laptop may not be 1440 wide
 await page.setViewportSize({ width: 900, height: 800 });
 await page.getByRole("button", { name: /verify/i }).click();
 await page.waitForTimeout(300);
-await shot("05-verify-narrow");
+await shot("06-verify-narrow");
 
 await browser.close();
 console.log(`\nwritten to ${OUT}`);

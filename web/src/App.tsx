@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useState } from "react";
-import { ClipboardList, ScrollText, ScanFace } from "lucide-react";
+import { ChartNoAxesColumn, ClipboardList, ScrollText, ScanFace } from "lucide-react";
 import { api, type Meta } from "./api";
 import { Audit, Queue, Verify } from "./views";
+import { Evidence } from "./Evidence";
 import { Dot } from "./ui";
 
-type View = "verify" | "queue" | "audit";
+type View = "verify" | "queue" | "audit" | "evidence";
 
 const NAV: { id: View; label: string; icon: typeof ScanFace }[] = [
   { id: "verify", label: "Verify", icon: ScanFace },
   { id: "queue", label: "Review queue", icon: ClipboardList },
   { id: "audit", label: "Audit trail", icon: ScrollText },
+  { id: "evidence", label: "Model evidence", icon: ChartNoAxesColumn },
 ];
 
 export default function App() {
@@ -31,6 +33,12 @@ export default function App() {
   }, [tick]);
 
   const m = meta?.metrics;
+
+  // Surfaced on every screen, not just the evidence view: a single MAE in the rail would
+  // imply the model is equally good everywhere, and it is not.
+  const weakest = (m?.per_band_mae ?? [])
+    .filter((b) => b.mae !== null && b.band !== "geriatric_90plus")
+    .sort((a, b) => (b.mae ?? 0) - (a.mae ?? 0))[0];
 
   return (
     <div className="flex min-h-dvh">
@@ -85,6 +93,16 @@ export default function App() {
             </dl>
           </div>
 
+          {weakest && (
+            <p className="border-t border-line pt-3 text-[10px] leading-relaxed text-ink-dim">
+              Weakest band:{" "}
+              <span className="font-mono text-stop">
+                {weakest.band.replace(/_/g, " ")} {weakest.mae?.toFixed(1)} yr
+              </span>
+              . Accuracy is not uniform across ages.
+            </p>
+          )}
+
           <p className="font-mono text-[10px] leading-relaxed text-ink-faint">
             {meta?.model.name ?? "—"} · {meta?.model.version ?? "—"}
             <br />
@@ -116,6 +134,7 @@ export default function App() {
           {view === "verify" && <Verify meta={meta} onChanged={refresh} />}
           {view === "queue" && <Queue onChanged={refresh} />}
           {view === "audit" && <Audit />}
+          {view === "evidence" && <Evidence meta={meta} />}
         </div>
       </main>
     </div>

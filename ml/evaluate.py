@@ -302,11 +302,18 @@ def main() -> int:
 
     DOCS.mkdir(parents=True, exist_ok=True)
     suffix = f"{a.tag}{'-tta' if a.tta else ''}"
+    payload = json.dumps({"tag": a.tag, "tta": a.tta, "epoch": raw["epoch"],
+                          "calibration": cal, "risk_coverage": rc}, indent=2)
+
     (DOCS / f"calibration-{suffix}.svg").write_text(svg_calibration(cal))
     (DOCS / f"risk-coverage-{suffix}.svg").write_text(svg_risk_coverage(rc))
-    (DOCS / f"evaluation-{suffix}.json").write_text(json.dumps(
-        {"tag": a.tag, "tta": a.tta, "epoch": raw["epoch"],
-         "calibration": cal, "risk_coverage": rc}, indent=2))
+    (DOCS / f"evaluation-{suffix}.json").write_text(payload)
+
+    # Also written beside the weights it describes. These numbers are only valid for one
+    # specific checkpoint, so keeping them in the checkpoint directory means a copied or
+    # renamed checkpoint carries its own evidence and cannot be paired with someone
+    # else's.
+    (CKPT_ROOT / a.tag / "evidence.json").write_text(payload)
 
     print(f"\nCALIBRATION  (n={cal[0]['n']:,}, does an X% interval contain the truth X% of the time?)")
     print(f"  {'nominal':>8} {'empirical':>10} {'gap':>8} {'width':>8}")

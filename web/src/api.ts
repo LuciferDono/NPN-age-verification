@@ -40,6 +40,32 @@ export interface Prediction {
   quality_reason?: string;
 }
 
+export interface BandMae {
+  band: string;
+  n: number;
+  mae: number | null;
+}
+
+export interface CoveragePoint {
+  nominal: number;
+  empirical: number;
+  gap: number;
+  mean_width_years: number;
+  n: number;
+}
+
+export interface Evidence {
+  calibration_curve?: CoveragePoint[];
+  risk_coverage?: {
+    curve: { coverage: number; selective_mae: number }[];
+    oracle: { coverage: number; selective_mae: number }[];
+    aurc: number | null;
+    aurc_oracle: number | null;
+    full_coverage_mae: number | null;
+    mae_at_85pct_coverage: number | null;
+  };
+}
+
 export interface Meta {
   model: { name: string; version: string; head: string };
   bands: Band[];
@@ -50,8 +76,11 @@ export interface Meta {
     cs5: number | null;
     band_accuracy: number | null;
     baseline_mae: number | null;
+    per_band_mae?: BandMae[];
+    n_test?: number;
   };
-  calibration: { decile: number; mae: number; n: number }[];
+  calibration: { decile: number; n: number; conf_min: number; conf_max: number; mae: number }[];
+  evidence: Evidence;
   mock: boolean;
 }
 

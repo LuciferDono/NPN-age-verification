@@ -110,13 +110,14 @@ def health() -> dict:
 def meta() -> dict:
     metrics = {"mae": None, "cs5": None, "band_accuracy": None, "baseline_mae": None}
     calibration: list[dict] = []
+    evidence: dict = {}
     if not MOCK:
         # Bands and policy must render even if the model cannot load. A 500 here means a
         # blank console in front of the panel; missing metrics only means empty cells,
         # which the UI already renders as "not measured".
         try:
             p = _load_predictor()
-            metrics, calibration = p.metrics(), p.calibration()
+            metrics, calibration, evidence = p.metrics(), p.calibration(), p.evidence()
         except Exception:  # noqa: BLE001
             pass
     return {
@@ -126,6 +127,7 @@ def meta() -> dict:
         "review_percentile": bands.REVIEW_PERCENTILE,
         "metrics": metrics,
         "calibration": calibration,
+        "evidence": evidence,
         "mock": MOCK,
     }
 

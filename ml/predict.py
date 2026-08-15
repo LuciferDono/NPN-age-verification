@@ -174,6 +174,35 @@ class Predictor:
     def calibration(self) -> list[dict]:
         return self._metrics.get("calibration", [])
 
+    def evidence(self) -> dict:
+        """Coverage and selective-prediction evidence, written by ml/evaluate.py.
+
+        Kept separate from metrics() because it answers a different question: metrics say
+        how accurate the model is, this says whether its stated uncertainty can be
+        trusted. Absent until evaluate.py has run, and the UI renders that absence rather
+        than inventing numbers.
+        """
+        p = self.dir / "evidence.json"
+        if not p.exists():
+            return {}
+        try:
+            d = json.loads(p.read_text())
+        except Exception:
+            return {}
+        rc = d.get("risk_coverage", {})
+        return {
+            "calibration_curve": d.get("calibration", []),
+            "risk_coverage": {
+                # Downsample: the UI draws a line, it does not need 100 points.
+                "curve": rc.get("curve", [])[::4],
+                "oracle": rc.get("oracle", [])[::4],
+                "aurc": rc.get("aurc"),
+                "aurc_oracle": rc.get("aurc_oracle"),
+                "full_coverage_mae": rc.get("full_coverage_mae"),
+                "mae_at_85pct_coverage": rc.get("mae_at_85pct_coverage"),
+            },
+        }
+
 
 def _round(v, nd: int = 2):
     return round(v, nd) if isinstance(v, (int, float)) else None
