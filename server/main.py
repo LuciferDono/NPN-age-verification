@@ -14,10 +14,11 @@ from __future__ import annotations
 import os
 import time
 import uuid
+from collections import defaultdict
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -47,6 +48,36 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
+
+# --- public-exposure guard -------------------------------------------------
+# Off by default: on the demo laptop, same-origin and offline, this is unnecessary.
+# Set NPN_PUBLIC=1 before putting the service behind a tunnel. Prediction runs a GPU
+# model, so an unthrottled public endpoint is both a cost and an availability problem,
+# and this is a biometric service — uploads from strangers are exactly what we do not
+# want to be accepting silently.
+PUBLIC = os.getenv("NPN_PUBLIC", "0") == "1"
+RATE_LIMIT_PER_MIN = int(os.getenv("NPN_RATE_LIMIT", "12"))
+_hits: dict[str, list[float]] = defaultdict(list)
+
+
+@app.middleware("http")
+async def throttle(request: Request, call_next):
+    if PUBLIC and request.url.path == "/api/predict":
+        ip = (request.headers.get("cf-connecting-ip")
+              or request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+              or (request.client.host if request.client else "unknown"))
+        now = time.time()
+        recent = [t for t in _hits[ip] if now - t < 60]
+        if len(recent) >= RATE_LIMIT_PER_MIN:
+            recent.append(now)
+            _hits[ip] = recent
+            return JSONResponse(
+                {"detail": f"rate limit: {RATE_LIMIT_PER_MIN} predictions per minute"},
+                status_code=429)
+        recent.append(now)
+        _hits[ip] = recent
+    return await call_next(request)
+
 
 _predictor = None  # lazily loaded real model; stays None in MOCK
 
@@ -129,6 +160,7 @@ def meta() -> dict:
         "calibration": calibration,
         "evidence": evidence,
         "mock": MOCK,
+        "public": PUBLIC,
     }
 
 

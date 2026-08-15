@@ -123,6 +123,12 @@ export default function App() {
                 SYNTHETIC MODEL — NOT FOR CLINICAL USE
               </span>
             )}
+            {meta?.public && !meta?.mock && (
+              <span className="flex items-center gap-1.5 border border-stop/60 px-2 py-0.5 text-stop">
+                <Dot tone="stop" />
+                RESEARCH DEMO — DO NOT UPLOAD IMAGES OF OTHER PEOPLE
+              </span>
+            )}
             <span className="flex items-center gap-1.5 text-ink-faint">
               <Dot tone={offline ? "stop" : "ok"} />
               {offline ? "service unreachable" : "service online"}

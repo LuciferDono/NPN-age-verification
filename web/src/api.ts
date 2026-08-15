@@ -82,6 +82,8 @@ export interface Meta {
   calibration: { decile: number; n: number; conf_min: number; conf_max: number; mae: number }[];
   evidence: Evidence;
   mock: boolean;
+  /** True when the service is reachable from outside the demo machine. */
+  public?: boolean;
 }
 
 export interface QueueItem {
