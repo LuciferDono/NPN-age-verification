@@ -27,3 +27,9 @@ demo/raw/
 
 .env
 .DS_Store
+
+# ad-hoc probe images used while testing by hand. Real people, web-sourced, no
+# consent or licence on file — they must not enter a public biometric repo.
+tests/*.jpg
+tests/*.jpeg
+tests/*.png
