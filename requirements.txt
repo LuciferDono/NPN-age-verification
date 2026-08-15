@@ -5,15 +5,18 @@ python-multipart==0.0.20
 pydantic==2.10.4
 pillow==11.1.0
 
-# --- Model lane only. Install separately. ----------------------------------
+# --- Model lane. Install separately; the API runs without any of it. --------
 # RTX 50-series (Blackwell, sm_120) needs the cu128 wheels. A plain
 # `pip install torch` pulls cu124 and dies at runtime with
 # "no kernel image is available for execution on the device".
 #
 #   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
+#   pip install timm==1.0.12 opencv-python==4.10.0.84
 #
-# Then:
-#   pip install timm==1.0.12 opencv-python==4.10.0.84 pandas==2.2.3 numpy==2.2.1 tqdm==4.67.1
+# Verified working on this machine (RTX 5060 Laptop, 8 GB, Python 3.13):
+#   torch 2.11.0+cu128, torchvision 0.26.0+cu128, sm_120 in torch.cuda.get_arch_list()
+#   EfficientNet-B0 @ 224px, batch 96, AMP fp16: 677 img/s, 4.1 GB VRAM peak
 #
-# Verify before training a single step:
-#   python -c "import torch;print(torch.__version__, torch.cuda.is_available(), torch.cuda.get_device_name(0))"
+# Verify before training a single step — `cuda.is_available()` alone is not enough,
+# it returns True even when no kernel for your arch exists. Run a real matmul:
+#   python -c "import torch; a=torch.randn(2048,2048,device='cuda',dtype=torch.float16); print((a@a).sum())"
