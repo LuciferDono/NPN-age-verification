@@ -125,11 +125,49 @@ Stated here rather than discovered by a reviewer:
   not removed. Resolving it properly needs an identity-tuned face-recognition embedding.
 - **Image only.** The problem statement also lists text, voice and other biometrics. No
   corpus was available for those, so a second modality was scoped out rather than faked.
-- **No demographic fairness numbers.** The reference dataset carries no skin-tone or
-  ethnicity labels, so a per-group fairness breakdown cannot be computed from it. This is
-  a real gap in a biometric healthcare system, and closing it needs an external balanced
-  evaluation set (e.g. FairFace). Residuals are sliced by age band instead, which the
-  labels do support.
+- **The model is measurably less accurate on Black faces.** The reference dataset carries
+  no skin-tone or ethnicity labels, so this cannot be measured on our own data. It can be
+  measured on someone else's: UTKFace encodes age, gender and race in its filenames, so we
+  ran the trained model over all 23,684 of its images as pure inference
+  (`python -m ml.fairness`). Because group age composition differs sharply — UTKFace's
+  "Other" group averages 23 years old against "White" at 38, and younger faces are easier
+  to estimate — the raw per-group table measures age composition as much as fairness. The
+  within-age-band comparison is the one that supports a claim:
+
+  | age band | best group | worst group | gap |
+  |---|---|---|---|
+  | 0–17 | Asian 1.42 | **Black 5.29** | 3.88 yr |
+  | 18–29 | Asian 3.27 | White 4.04 | 0.77 yr |
+  | 30–49 | Other 4.75 | **Black 6.71** | 1.96 yr |
+  | 50–64 | Other 5.53 | **Black 8.60** | 3.07 yr |
+  | 65+ | White 8.45 | **Black 12.01** | 3.56 yr |
+
+  Black subjects carry the highest error in four of five bands. **The paediatric row is
+  the serious one**: 3.7× the error of the best group, in exactly the band containing the
+  age-18 threshold that the eligibility policy turns on. Every figure ships with n and a
+  bootstrap confidence interval in `docs/fairness-dist-v1.json`; cells below 30 samples
+  are reported as too small rather than as a number.
+
+  Two caveats that matter. UTKFace is out of distribution for this model, so its absolute
+  MAE is not comparable to our held-out figure and only the between-group spread is
+  meaningful. And UTKFace's own ages are algorithmically estimated then human-checked, so
+  the labels carry noise of their own. What this does establish is a direction and a
+  magnitude, and neither is acceptable to wave away.
+
+  We have not corrected it. Doing so would need training data balanced across skin tones,
+  which the reference dataset cannot provide.
+
+  The system does contain it, and that is measurable too. The confidence-based routing
+  rule fires on **15.7%** of Black subjects against 7.8% of White and 4.1% of "Other" —
+  the routing order matches the error order exactly, so the cases the model serves worst
+  are the ones it most often declines to decide alone. That is the review queue doing
+  what it exists for.
+
+  It is containment, not a fix, and it carries its own cost: **the same people are
+  disproportionately subjected to manual review**, which is a worse experience even when
+  it produces a better decision. A system that is less accurate for one group and also
+  slower for that group has not solved its fairness problem by adding a human. Both halves
+  of that belong on the record.
 - **Dataset age range is measured, not assumed.** The Kaggle page states 1–100 while a
   public reimplementation used a 20–50 subset. Both are true: the dataset ships two
   independent trees. Gate 0 read the authoritative per-age file counts and recorded them

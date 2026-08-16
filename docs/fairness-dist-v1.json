@@ -132,5 +132,176 @@
       "ci_high": 4.254
     }
   ],
-  "widest_intersectional_gap_years": 2.85
+  "widest_intersectional_gap_years": 2.85,
+  "age_stratified": [
+    {
+      "band": "0-17",
+      "groups": {
+        "White": {
+          "n": 1856,
+          "mae": 2.4
+        },
+        "Black": {
+          "n": 280,
+          "mae": 5.292
+        },
+        "Asian": {
+          "n": 995,
+          "mae": 1.416
+        },
+        "Indian": {
+          "n": 591,
+          "mae": 2.313
+        },
+        "Other": {
+          "n": 511,
+          "mae": 2.23
+        }
+      },
+      "best": "Asian",
+      "worst": "Black",
+      "gap": 3.876
+    },
+    {
+      "band": "18-29",
+      "groups": {
+        "White": {
+          "n": 2179,
+          "mae": 4.041
+        },
+        "Black": {
+          "n": 1914,
+          "mae": 4.023
+        },
+        "Asian": {
+          "n": 1359,
+          "mae": 3.266
+        },
+        "Indian": {
+          "n": 1546,
+          "mae": 3.886
+        },
+        "Other": {
+          "n": 706,
+          "mae": 3.512
+        }
+      },
+      "best": "Asian",
+      "worst": "White",
+      "gap": 0.775
+    },
+    {
+      "band": "30-49",
+      "groups": {
+        "White": {
+          "n": 2864,
+          "mae": 4.946
+        },
+        "Black": {
+          "n": 1680,
+          "mae": 6.711
+        },
+        "Asian": {
+          "n": 684,
+          "mae": 5.818
+        },
+        "Indian": {
+          "n": 1153,
+          "mae": 5.805
+        },
+        "Other": {
+          "n": 400,
+          "mae": 4.752
+        }
+      },
+      "best": "Other",
+      "worst": "Black",
+      "gap": 1.959
+    },
+    {
+      "band": "50-64",
+      "groups": {
+        "White": {
+          "n": 1819,
+          "mae": 5.689
+        },
+        "Black": {
+          "n": 417,
+          "mae": 8.595
+        },
+        "Asian": {
+          "n": 176,
+          "mae": 6.83
+        },
+        "Indian": {
+          "n": 554,
+          "mae": 7.298
+        },
+        "Other": {
+          "n": 63,
+          "mae": 5.529
+        }
+      },
+      "best": "Other",
+      "worst": "Black",
+      "gap": 3.066
+    },
+    {
+      "band": "65+",
+      "groups": {
+        "White": {
+          "n": 1348,
+          "mae": 8.445
+        },
+        "Black": {
+          "n": 232,
+          "mae": 12.006
+        },
+        "Asian": {
+          "n": 216,
+          "mae": 9.24
+        },
+        "Indian": {
+          "n": 129,
+          "mae": 10.098
+        },
+        "Other": {
+          "n": 12,
+          "mae": null
+        }
+      },
+      "best": "White",
+      "worst": "Black",
+      "gap": 3.561
+    }
+  ],
+  "age_stratified_note": "Group age composition differs sharply (Other averages 23 years, White 38), and younger faces are easier to estimate, so raw per-group MAE partly measures age composition. These within-band figures are the ones that support a fairness claim.",
+  "review_routing_by_group": [
+    {
+      "group": "Black",
+      "n": 4523,
+      "review_rate": 0.1572
+    },
+    {
+      "group": "Indian",
+      "n": 3973,
+      "review_rate": 0.0919
+    },
+    {
+      "group": "White",
+      "n": 10066,
+      "review_rate": 0.0778
+    },
+    {
+      "group": "Asian",
+      "n": 3430,
+      "review_rate": 0.0633
+    },
+    {
+      "group": "Other",
+      "n": 1692,
+      "review_rate": 0.0414
+    }
+  ],
+  "review_routing_note": "Share of each group the confidence rule sends to a human. Routing order matches error order, so the queue does contain the disparity - but the same people then carry more manual review, which is a cost, not a correction."
 }

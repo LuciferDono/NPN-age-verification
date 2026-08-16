@@ -158,6 +158,52 @@ def show_stratified(rows: list[dict]) -> None:
                   f"gap {row['gap']:.2f} yr")
 
 
+def review_rates(items, tag: str) -> list[dict]:
+    """Share of each group the confidence rule would route to a human reviewer.
+
+    Worth measuring rather than assuming. The claim that "the review queue contains the
+    bias" is only true if routing actually fires more often for the groups the model
+    serves worst, and it also exposes the cost of that containment: the same people then
+    carry disproportionately more manual review.
+    """
+    metrics = json.loads((CKPT_ROOT / tag / "metrics.json").read_text())
+    quant = metrics.get("confidence_quantiles") or []
+    if not quant:
+        return []
+    thresh = 0.15          # server/bands.py REVIEW_PERCENTILE
+
+    dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    ck = torch.load(CKPT_ROOT / tag / "model.pt", map_location=dev, weights_only=True)
+    model = AgeModel(head=ck["head"], pretrained=False).to(dev).eval()
+    model.load_state_dict(ck["state_dict"])
+
+    dl = DataLoader(AgeFolder([(p, a) for p, a, _, _ in items], False, IMAGE_SIZE),
+                    batch_size=256, shuffle=False, num_workers=6, pin_memory=True)
+    confs: list[float] = []
+    with torch.no_grad():
+        for x, _ in dl:
+            confs += [d.confidence for d in decode(
+                model(x.to(dev, non_blocking=True)).float(), ck["head"])]
+
+    flagged: dict[str, list[bool]] = defaultdict(list)
+    for (_, _, _, r), c in zip(items, confs):
+        pct = sum(1 for v in quant if v <= c) / len(quant)
+        flagged[RACE[r]].append(pct <= thresh)
+
+    return sorted([{"group": g, "n": len(v), "review_rate": round(sum(v) / len(v), 4)}
+                   for g, v in flagged.items()], key=lambda r: -r["review_rate"])
+
+
+def show_routing(rows: list[dict]) -> None:
+    if not rows:
+        return
+    print("\nShare of each group the confidence rule routes to human review")
+    for r in rows:
+        print(f"  {r['group']:<8} {r['review_rate']:>7.1%}   (n={r['n']:,})")
+    print("  Containment, not a correction: the worst-served groups also carry the most")
+    print("  manual review, which is a worse experience even when the decision is better.")
+
+
 def show(title: str, rows: list[dict], overall: float) -> None:
     print(f"\n{title}")
     print(f"  {'group':<18} {'n':>7} {'MAE':>7}   {'95% CI':>16}   vs overall")
@@ -200,7 +246,13 @@ def main() -> int:
     show("Intersectional", by_both, overall)
 
     spread = max(r["mae"] for r in by_both) - min(r["mae"] for r in by_both)
-    print(f"\nwidest intersectional gap  {spread:.2f} years")
+    print(f"\nwidest intersectional gap  {spread:.2f} years  (NOT age-controlled)")
+
+    strat = stratified(items, preds)
+    show_stratified(strat)
+
+    routing = review_rates(items, a.tag)
+    show_routing(routing)
 
     DOCS.mkdir(parents=True, exist_ok=True)
     out = DOCS / f"fairness-{a.tag}.json"
@@ -220,6 +272,11 @@ def main() -> int:
             "and younger faces are easier to estimate, so raw per-group MAE partly "
             "measures age composition. These within-band figures are the ones that "
             "support a fairness claim."),
+        "review_routing_by_group": routing,
+        "review_routing_note": (
+            "Share of each group the confidence rule sends to a human. Routing order "
+            "matches error order, so the queue does contain the disparity - but the same "
+            "people then carry more manual review, which is a cost, not a correction."),
     }, indent=2))
     print(f"\nwritten to {out}")
     return 0
