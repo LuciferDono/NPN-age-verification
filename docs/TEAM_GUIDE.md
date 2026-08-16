@@ -103,6 +103,40 @@ To run just one of the 7 API contract tests, pass a substring of its name:
 .venv/Scripts/python.exe tests/test_api.py envelope
 ```
 
+### Running the trained model instead of mock mode
+
+Everything above runs the server in mock mode (`NPN_MOCK=1`), which needs no `torch`
+install at all. To serve real predictions from the checkpoint already committed to the
+repo (`checkpoints/dist-v1`), install the ML dependencies separately - they're kept out
+of the default `requirements.txt` install specifically so the API can boot on a
+machine with no GPU or ML stack:
+
+```bash
+# CPU-only machines: plain pip install works
+.venv/Scripts/python.exe -m pip install torch torchvision
+.venv/Scripts/python.exe -m pip install timm==1.0.12 opencv-python==4.10.0.84
+
+# then run with mock mode turned off
+NPN_MOCK=0 .venv/Scripts/python.exe -m uvicorn server.main:app --port 8000
+```
+
+**RTX 50-series GPUs (Blackwell, `sm_120`) need a different torch build.** A plain
+`pip install torch` pulls the cu124 build and fails at runtime with "no kernel image
+is available for execution on the device" - it installs fine and only breaks the
+moment you try to use the GPU. Use the cu128 wheels instead:
+
+```bash
+.venv/Scripts/python.exe -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
+```
+
+`server/main.py::_load_predictor` only imports `ml.predict.Predictor` the first time a
+real prediction is requested, so none of this is needed just to run the API in mock
+mode - only to serve the actual trained model.
+
+Both the mock-mode and real-model contract test suites were run and verified while
+writing this guide: all 7 tests pass with `NPN_MOCK=1` (the default) and all 7 pass
+again with `NPN_MOCK=0` against the committed `checkpoints/dist-v1` weights.
+
 ---
 
 ## 3. Architecture overview
@@ -320,7 +354,11 @@ requested, so the whole API server can start up and run fine even on a machine w
 ### Four views, no router
 
 `web/src/App.tsx` uses plain `useState` to switch between four views (no router, no
-state management library - the app is intentionally small):
+state management library - the app is intentionally small). Note: `PRODUCT.md` and
+`CLAUDE.md` describe "three views" - that was true at the start of the build; the
+fourth view (Model evidence) was added afterward once the calibration and
+risk-coverage work landed, and those docs haven't been updated to match. The actual
+running app has four:
 
 1. **Verify** - upload a photo, see the assessment
 2. **Review queue** - cases the model declined to decide alone

@@ -21,7 +21,9 @@ web/node_modules/
 web/dist/
 web/.vite/
 
-# demo assets that are large; keep the final cut only
+# demo recordings. Large binaries that change every take, so they live locally and
+# are shared as files rather than through git history.
+docs/demo/
 demo/raw/
 *.mp4.tmp
 

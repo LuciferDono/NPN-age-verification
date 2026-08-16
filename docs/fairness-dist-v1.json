@@ -1,0 +1,136 @@
+{
+  "source": "UTKFace (jangedoo/utkface-new), inference only, no retraining",
+  "caveat": "Out of distribution for this model. Absolute MAE is not comparable to our held-out figure; only the spread between groups is meaningful. UTKFace ages are algorithmically estimated and human-checked, so the labels carry their own noise.",
+  "n": 23684,
+  "overall_mae": 4.83,
+  "overall_ci": [
+    4.766,
+    4.893
+  ],
+  "by_race": [
+    {
+      "group": "White",
+      "n": 10066,
+      "mae": 4.883,
+      "ci_low": 4.788,
+      "ci_high": 4.985
+    },
+    {
+      "group": "Black",
+      "n": 4523,
+      "mae": 5.931,
+      "ci_low": 5.762,
+      "ci_high": 6.109
+    },
+    {
+      "group": "Indian",
+      "n": 3973,
+      "mae": 4.886,
+      "ci_low": 4.739,
+      "ci_high": 5.042
+    },
+    {
+      "group": "Asian",
+      "n": 3430,
+      "mae": 3.797,
+      "ci_low": 3.653,
+      "ci_high": 3.957
+    },
+    {
+      "group": "Other",
+      "n": 1692,
+      "mae": 3.53,
+      "ci_low": 3.339,
+      "ci_high": 3.724
+    }
+  ],
+  "by_gender": [
+    {
+      "group": "male",
+      "n": 12386,
+      "mae": 5.154,
+      "ci_low": 5.061,
+      "ci_high": 5.251
+    },
+    {
+      "group": "female",
+      "n": 11298,
+      "mae": 4.474,
+      "ci_low": 4.384,
+      "ci_high": 4.568
+    }
+  ],
+  "intersectional": [
+    {
+      "group": "White male",
+      "n": 5474,
+      "mae": 5.085,
+      "ci_low": 4.942,
+      "ci_high": 5.227
+    },
+    {
+      "group": "White female",
+      "n": 4592,
+      "mae": 4.644,
+      "ci_low": 4.501,
+      "ci_high": 4.779
+    },
+    {
+      "group": "Black male",
+      "n": 2318,
+      "mae": 5.837,
+      "ci_low": 5.614,
+      "ci_high": 6.071
+    },
+    {
+      "group": "Indian male",
+      "n": 2261,
+      "mae": 5.637,
+      "ci_low": 5.427,
+      "ci_high": 5.855
+    },
+    {
+      "group": "Black female",
+      "n": 2205,
+      "mae": 6.03,
+      "ci_low": 5.777,
+      "ci_high": 6.282
+    },
+    {
+      "group": "Asian female",
+      "n": 1857,
+      "mae": 3.392,
+      "ci_low": 3.205,
+      "ci_high": 3.589
+    },
+    {
+      "group": "Indian female",
+      "n": 1712,
+      "mae": 3.895,
+      "ci_low": 3.7,
+      "ci_high": 4.089
+    },
+    {
+      "group": "Asian male",
+      "n": 1573,
+      "mae": 4.276,
+      "ci_low": 4.041,
+      "ci_high": 4.532
+    },
+    {
+      "group": "Other female",
+      "n": 932,
+      "mae": 3.18,
+      "ci_low": 2.958,
+      "ci_high": 3.434
+    },
+    {
+      "group": "Other male",
+      "n": 760,
+      "mae": 3.959,
+      "ci_low": 3.674,
+      "ci_high": 4.254
+    }
+  ],
+  "widest_intersectional_gap_years": 2.85
+}
