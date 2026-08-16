@@ -33,3 +33,6 @@ demo/raw/
 tests/*.jpg
 tests/*.jpeg
 tests/*.png
+
+# personal notes and memos. Never committed, never shared.
+notes/

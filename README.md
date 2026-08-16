@@ -111,6 +111,18 @@ Every outcome returns the same shape — including the failures. `no_face`, `mul
 
 Stated here rather than discovered by a reviewer:
 
+- **The headline MAE is optimistic, and we measured by how much.** The reference dataset is
+  celebrity photography and the publisher's train/test split is per-image, not per-person,
+  so the same individual appears on both sides. Inspecting the highest-similarity
+  cross-split pairs at age 72 confirmed it visually: three of the top six pairs are the
+  same person in train and in test. Excluding test images that closely resemble training
+  images moves MAE from **5.64 to 6.00 at a 0.93 cosine cut, and 6.57 at 0.90**. The
+  similarity is computed with our own age-trained backbone, which cannot cleanly separate
+  "same person" from "similar-looking face of the same age", so 6.57 is a pessimistic
+  bound rather than a corrected figure. **The honest reading is that the true value lies
+  between 5.64 and 6.57.** The dataset ships anonymised filenames with no identity labels,
+  so a correct per-person split cannot be reconstructed; the effect can be quantified but
+  not removed. Resolving it properly needs an identity-tuned face-recognition embedding.
 - **Image only.** The problem statement also lists text, voice and other biometrics. No
   corpus was available for those, so a second modality was scoped out rather than faked.
 - **No demographic fairness numbers.** The reference dataset carries no skin-tone or

@@ -67,6 +67,15 @@ export function Evidence({ meta }: { meta: Meta | null }) {
             The baseline predicts the mean age for every subject; anything above it is not
             learning.
           </p>
+          {/* The published split is per-image, not per-person, on a celebrity corpus, so
+              the same face appears on both sides. Stating the headline figure without this
+              would be publishing a number we know to be flattering. */}
+          <p className="mt-2 text-[11px] leading-relaxed text-stop">
+            Optimistic. The source split is per-image on celebrity photography, so some
+            subjects appear in both halves. Excluding test images that closely resemble
+            training images moves this to <span className="font-mono">6.00–6.57</span>.
+            See README, honest limits.
+          </p>
         </Panel>
 
         <Panel title="Interval honesty">
