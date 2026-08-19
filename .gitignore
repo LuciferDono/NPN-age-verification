@@ -38,3 +38,7 @@ tests/*.png
 
 # personal notes and memos. Never committed, never shared.
 notes/
+
+# built decks. Large binaries that change on every rebuild, and the generator in deck/
+# reproduces them from source, so they are shared as files rather than through history.
+docs/*.pptx
