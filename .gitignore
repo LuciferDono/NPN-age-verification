@@ -19,6 +19,9 @@ venv/
 # frontend
 web/node_modules/
 web/dist/
+web-purple/node_modules/
+web-purple/dist/
+web-purple/tsconfig.tsbuildinfo
 web/.vite/
 
 # demo recordings. Large binaries that change every take, so they live locally and
@@ -42,3 +45,6 @@ notes/
 # built decks. Large binaries that change on every rebuild, and the generator in deck/
 # reproduces them from source, so they are shared as files rather than through history.
 docs/*.pptx
+
+# Exploratory dashboard concepts. Scratch work for picking a direction — never pushed.
+docs/temp/

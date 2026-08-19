@@ -29,7 +29,8 @@ from . import bands, store
 MOCK = os.getenv("NPN_MOCK", "1") == "1"
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp"}
-DIST = Path(__file__).resolve().parent.parent / "web" / "dist"
+DIST = Path(__file__).resolve().parent.parent / "web" / "dist"            # white dashboard
+PURPLE_DIST = Path(__file__).resolve().parent.parent / "web-purple" / "dist"  # purple, default
 CONTRACT_VERSION = "1.0.0"
 
 @asynccontextmanager
@@ -282,11 +283,43 @@ def audit(limit: int = 50) -> dict:
 
 # --- static frontend (mounted last so /api/* always wins) ------------------
 
-if DIST.is_dir():
-    app.mount("/assets", StaticFiles(directory=DIST / "assets"), name="assets")
+# Two frontends share this one process. PURPLE_DIST holds the root because it is the
+# default interface; the white console stays reachable at /white. Both talk to the same API
+# on the same origin, so adding the second one adds no CORS surface.
+#
+# Order matters and is load-bearing: /white is registered before the root catch-all, or the
+# catch-all would swallow it and hand back purple's index.html.
+if PURPLE_DIST.is_dir():
+    @app.get("/white")
+    def white_root() -> FileResponse:
+        return FileResponse(DIST / "index.html")
+
+    @app.get("/white/{path:path}")
+    def white_spa(path: str) -> FileResponse:
+        if not DIST.is_dir():
+            raise HTTPException(404, "white dashboard not built — run: cd web && "
+                                     "NPN_BASE=/white/ npm run build")
+        candidate = DIST / path
+        if path and candidate.is_file():
+            return FileResponse(candidate)
+        return FileResponse(DIST / "index.html")
+
+    app.mount("/assets", StaticFiles(directory=PURPLE_DIST / "assets"), name="assets")
 
     @app.get("/{path:path}")
     def spa(path: str) -> FileResponse:
+        candidate = PURPLE_DIST / path
+        if path and candidate.is_file():
+            return FileResponse(candidate)
+        return FileResponse(PURPLE_DIST / "index.html")
+
+elif DIST.is_dir():
+    # Purple not built: fall back to serving the white console at the root rather than
+    # returning 404 for everything, which would look like a dead server on demo day.
+    app.mount("/assets", StaticFiles(directory=DIST / "assets"), name="assets")
+
+    @app.get("/{path:path}")
+    def spa_white_only(path: str) -> FileResponse:
         candidate = DIST / path
         if path and candidate.is_file():
             return FileResponse(candidate)

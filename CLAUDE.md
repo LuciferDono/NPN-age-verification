@@ -18,19 +18,57 @@ the point.
 
 Windows paths shown (`.venv/Scripts/`); on Linux/macOS use `.venv/bin/`.
 
+### Two dashboards, one server
+
+There are **two** frontends against the same API. Both are served by the single FastAPI
+process; adding the second one added no CORS surface because both stay same-origin.
+
+| name | directory | served at | look |
+|---|---|---|---|
+| **Purple dashboard** (default) | `web-purple/` | `/` | dark slate + cyan; adds Policy Simulator and Batch Evaluation views |
+| **White dashboard** | `web/` | `/white` | the light clinical console; the design rules below govern this one |
+
+`server/main.py` gives the root to purple and registers `/white` **before** the root
+catch-all — reversing that order makes the catch-all swallow `/white` and hand back purple's
+`index.html`. If `web-purple/dist` is missing, the server falls back to serving white at the
+root rather than 404-ing everything.
+
+**The white build must be built with a base prefix**, or its `index.html` asks for
+`/assets/...` and gets purple's bundle:
+
+```bash
+cd web && NPN_BASE=white npm run build      # bare name, NOT /white/
+```
+
+`NPN_BASE` deliberately takes a bare name: Git Bash on Windows rewrites env values that
+look like absolute paths, so `NPN_BASE=/white/` silently becomes `/Program Files/Git/white/`
+and ships dead asset URLs. Plain `npm run dev` is unaffected and still serves from `/`.
+
 ```bash
 # setup
 python -m venv .venv
 .venv/Scripts/python.exe -m pip install -r requirements.txt
 cd web && npm install
+cd web-purple && npm install
 
-# run — ONE process serves API + built frontend on one port
-cd web && npm run build          # must run before uvicorn, or / returns 404
+# build BOTH before uvicorn, or the corresponding route 404s
+cd web-purple && npm run build              # purple -> served at /
+cd web && NPN_BASE=white npm run build      # white  -> served at /white
+
+# run — ONE process serves API + both frontends on one port
 .venv/Scripts/python.exe -m uvicorn server.main:app --port 8000
 
-# frontend dev loop (proxies /api to :8000, which must be running)
-cd web && npm run dev
+# frontend dev loops (each proxies /api to :8000, which must be running)
+cd web && npm run dev            # white  on :5173
+cd web-purple && npm run dev     # purple on :5174
 ```
+
+**Mock mode must stay visible in both.** Purple originally read `mock` from `/api/health`
+and never displayed it, which meant that as the default interface it would have shown
+synthetic ages with no warning — and `NPN_MOCK` defaults to `1`. `web-purple/src/App.tsx`
+now renders a non-dismissible `SYNTHETIC MODEL — NOT FOR CLINICAL USE` banner when the
+server reports mock **or** when the client has fallen back to its local simulator. Do not
+remove it; see the mock-mode rule below.
 
 ### Checks
 

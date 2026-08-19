@@ -1,7 +1,7 @@
 # Build output and intermediates. The deck itself is committed to docs/.
 node_modules/
-preview/
-slides/
+preview*/
+slides*/
 media/
 html2pptx.js
 package-lock.json
