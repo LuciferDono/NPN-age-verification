@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertTriangle, ScanFace, Upload } from "lucide-react";
+import { AlertTriangle, Camera, ScanFace, Upload, VideoOff } from "lucide-react";
 import {
   api,
   outcomeTone,
@@ -22,6 +22,83 @@ export function Verify({ meta, onChanged }: { meta: Meta | null; onChanged: () =
   const [err, setErr] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const accept = useCallback((f: File | undefined) => {
+    if (!f) return;
+    setResult(null);
+    setErr(null);
+    setFile(f);
+  }, []);
+
+  // Camera capture. `source` swaps the panel between a dropzone and a live preview; a
+  // captured frame becomes a File and goes through `accept` like any upload, so there is
+  // one submit path and one set of states to reason about.
+  const [source, setSource] = useState<"file" | "camera">("file");
+  const [camErr, setCamErr] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const [live, setLive] = useState(false);
+
+  const stopCam = useCallback(() => {
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
+    setLive(false);
+  }, []);
+
+  const startCam = useCallback(async () => {
+    setCamErr(null);
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 960 } },
+        audio: false,
+      });
+      streamRef.current = s;
+      if (videoRef.current) {
+        videoRef.current.srcObject = s;
+        await videoRef.current.play().catch(() => {});
+      }
+      setLive(true);
+    } catch (e) {
+      // getUserMedia needs a secure context: localhost or HTTPS. Over a plain-HTTP LAN
+      // address it throws here, and the panel says so rather than looking broken.
+      const name = e instanceof Error ? e.name : String(e);
+      setCamErr(
+        name === "NotAllowedError"
+          ? "camera permission denied"
+          : name === "NotFoundError"
+            ? "no camera found on this device"
+            : !window.isSecureContext
+              ? "camera needs localhost or HTTPS"
+              : `camera unavailable (${name})`,
+      );
+    }
+  }, []);
+
+  // Never leave the capture light on: stop on unmount and whenever the source changes.
+  useEffect(() => () => stopCam(), [stopCam]);
+  useEffect(() => {
+    if (source !== "camera") stopCam();
+  }, [source, stopCam]);
+
+  const capture = useCallback(() => {
+    const v = videoRef.current;
+    if (!v?.videoWidth) return;
+    const c = document.createElement("canvas");
+    c.width = v.videoWidth;
+    c.height = v.videoHeight;
+    c.getContext("2d")?.drawImage(v, 0, 0);
+    c.toBlob(
+      (b) => {
+        if (!b) return;
+        accept(new File([b], `capture-${Date.now()}.jpg`, { type: "image/jpeg" }));
+        stopCam();
+        setSource("file"); // fall back to showing the still that will be submitted
+      },
+      "image/jpeg",
+      0.92,
+    );
+  }, [accept, stopCam]);
 
   // Revoke the previous object URL on change — an unbounded leak otherwise, and this
   // screen gets hammered during a demo.
@@ -47,13 +124,6 @@ export function Verify({ meta, onChanged }: { meta: Meta | null; onChanged: () =
     }
   }, [file, meta, onChanged]);
 
-  const accept = (f: File | undefined) => {
-    if (!f) return;
-    setResult(null);
-    setErr(null);
-    setFile(f);
-  };
-
   const ok = result?.status === "ok";
   const tone = result ? outcomeTone[result.decision.outcome] : "dim";
 
@@ -61,31 +131,74 @@ export function Verify({ meta, onChanged }: { meta: Meta | null; onChanged: () =
     <div className="grid gap-3 lg:grid-cols-[minmax(280px,340px)_1fr]">
       <div className="flex flex-col gap-3">
         <Panel title="Subject image">
-          <div
-            onDragOver={(e) => {
-              e.preventDefault();
-              setDragging(true);
-            }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setDragging(false);
-              accept(e.dataTransfer.files[0]);
-            }}
-            onClick={() => inputRef.current?.click()}
-            className={`grid aspect-square cursor-pointer place-items-center border border-dashed transition-colors ${
-              dragging ? "border-signal bg-signal/5" : "border-line-strong hover:border-ink-faint"
-            }`}
-          >
-            {preview ? (
-              <img src={preview} alt="subject" className="size-full object-cover" />
-            ) : (
-              <div className="flex flex-col items-center gap-2 text-ink-faint">
-                <Upload className="size-4" strokeWidth={1.5} />
-                <span className="label">drop image or click</span>
-              </div>
-            )}
+          {/* Source is a two-state switch, not a mode with its own screen: both paths end
+              at the same File and the same analyse button. */}
+          <div className="mb-3 flex gap-1 border-b border-line">
+            {(["file", "camera"] as const).map((s) => (
+              <button
+                key={s}
+                onClick={() => setSource(s)}
+                className={`-mb-px flex items-center gap-1.5 border-b px-3 py-1.5 text-[11px] tracking-wide uppercase transition-colors ${
+                  source === s
+                    ? "border-signal text-ink"
+                    : "border-transparent text-ink-faint hover:text-ink-soft"
+                }`}
+              >
+                {s === "file" ? (
+                  <Upload className="size-3" strokeWidth={1.5} />
+                ) : (
+                  <Camera className="size-3" strokeWidth={1.5} />
+                )}
+                {s}
+              </button>
+            ))}
           </div>
+
+          {source === "file" ? (
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragging(true);
+              }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragging(false);
+                accept(e.dataTransfer.files[0]);
+              }}
+              onClick={() => inputRef.current?.click()}
+              className={`grid aspect-square cursor-pointer place-items-center border border-dashed transition-colors ${
+                dragging ? "border-signal bg-signal/5" : "border-line-strong hover:border-ink-faint"
+              }`}
+            >
+              {preview ? (
+                <img src={preview} alt="subject" className="size-full object-cover" />
+              ) : (
+                <div className="flex flex-col items-center gap-2 text-ink-faint">
+                  <Upload className="size-4" strokeWidth={1.5} />
+                  <span className="label">drop image or click</span>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="grid aspect-square place-items-center border border-line-strong bg-ink/90">
+              {/* mirrored so it behaves like a mirror, which is what people expect */}
+              <video
+                ref={videoRef}
+                playsInline
+                muted
+                className={`size-full object-cover ${live ? "" : "hidden"}`}
+                style={{ transform: "scaleX(-1)" }}
+              />
+              {!live && (
+                <div className="flex flex-col items-center gap-2 px-4 text-center text-paper/60">
+                  <VideoOff className="size-4" strokeWidth={1.5} />
+                  <span className="label">{camErr ?? "camera off"}</span>
+                </div>
+              )}
+            </div>
+          )}
+
           <input
             ref={inputRef}
             type="file"
@@ -94,14 +207,37 @@ export function Verify({ meta, onChanged }: { meta: Meta | null; onChanged: () =
             onChange={(e) => accept(e.target.files?.[0])}
           />
 
-          <div className="mt-3 flex items-center justify-between gap-2">
-            <span className="truncate font-mono text-[11px] text-ink-faint">
-              {file ? `${file.name} · ${(file.size / 1024).toFixed(0)} KB` : "no file selected"}
-            </span>
-            <Btn onClick={submit} disabled={!file || busy} variant="primary">
-              {busy ? "analysing" : "analyse"}
-            </Btn>
-          </div>
+          {source === "camera" ? (
+            <>
+              <div className="mt-3 flex items-center gap-2">
+                {live ? (
+                  <>
+                    <Btn onClick={capture} variant="primary">
+                      capture
+                    </Btn>
+                    <Btn onClick={stopCam}>stop</Btn>
+                  </>
+                ) : (
+                  <Btn onClick={startCam} variant="primary">
+                    start camera
+                  </Btn>
+                )}
+              </div>
+              <p className="mt-2 text-[11px] leading-relaxed text-ink-faint">
+                Capture your own face only. A frame is sent once, hashed, and discarded —
+                nothing is stored. Do not capture anyone who has not agreed to it.
+              </p>
+            </>
+          ) : (
+            <div className="mt-3 flex items-center justify-between gap-2">
+              <span className="truncate font-mono text-[11px] text-ink-faint">
+                {file ? `${file.name} · ${(file.size / 1024).toFixed(0)} KB` : "no file selected"}
+              </span>
+              <Btn onClick={submit} disabled={!file || busy} variant="primary">
+                {busy ? "analysing" : "analyse"}
+              </Btn>
+            </div>
+          )}
         </Panel>
 
         <Panel title="Active policy">
